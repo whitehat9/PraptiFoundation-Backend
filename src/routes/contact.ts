@@ -10,16 +10,14 @@ import {
   markAsRead,
   deleteMessage,
 } from "../controllers/contact.controller";
-import { verifyRecaptchaV2 } from "../middleware/recaptchaMiddleware";
 
 const router = express.Router();
 
 // Public routes
 router.post(
   "/send",
-  verifyRecaptchaV2,
   formLimiter, // Rate limit contact form submissions
-  sendMessage
+  sendMessage,
 );
 
 // Protected routes (Admin only)

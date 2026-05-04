@@ -15,7 +15,7 @@ const TOKEN_EXPIRATION = process.env.JWT_EXPIRE_TIME || 30 * 24 * 60 * 60; // 30
 
 /**
  * @desc    Login admin user and generate token
- * @route   POST /api/admin/login
+ * @route   POST /api/auth/login
  * @access  Public
  */
 export const loginAdmin = asyncHandler(
@@ -61,12 +61,12 @@ export const loginAdmin = asyncHandler(
         token,
       },
     });
-  }
+  },
 );
 
 /**
  * @desc    Logout admin user
- * @route   POST /api/admin/logout
+ * @route   POST /logout
  * @access  Private
  */
 export const logoutAdmin = asyncHandler(
@@ -88,5 +88,5 @@ export const logoutAdmin = asyncHandler(
       success: true,
       message: "Logout successful",
     });
-  }
+  },
 );

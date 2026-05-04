@@ -7,13 +7,12 @@ import {
   getVolunteerById,
   getVolunteerInfo,
 } from "../controllers/volunteer.controller";
-import { verifyRecaptchaV2 } from "../middleware/recaptchaMiddleware";
 
 const router = express.Router();
 
 // POST /api/volunteers/create - create a new volunteer application
 //Public
-router.post("/create", verifyRecaptchaV2, createVolunteer);
+router.post("/create", createVolunteer);
 
 // GET /api/volunteers/info - Get volunteer applications
 // Private

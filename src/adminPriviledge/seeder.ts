@@ -3,7 +3,7 @@ import AdminModel from "../models/adminModel";
 
 /**
  * @desc    Seed admin user
- * @route   POST /api/admin/seed
+ * @route   POST /api/auth/seed
  * @access  Public (should be protected in production)
  */
 const seedAdmin = asyncHandler(async (req, res) => {
@@ -46,7 +46,7 @@ const seedAdmin = asyncHandler(async (req, res) => {
     throw new Error(
       `Error seeding admin: ${
         error instanceof Error ? error.message : "Unknown error"
-      }`
+      }`,
     );
   }
 });

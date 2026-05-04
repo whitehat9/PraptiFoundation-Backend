@@ -46,7 +46,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(
   morgan("combined", {
     stream: { write: (message: string) => logger.info(message.trim()) },
-  })
+  }),
 );
 
 // Health check endpoints (no rate limiting)
@@ -74,7 +74,7 @@ app.listen(PORT, () => {
   console.log(`Listening to http://localhost:${PORT}`);
 });
 
-app.use("/api/admin", auth);
+app.use("/api/auth", auth);
 app.use("/api/blogs", blogs);
 app.use("/api/cloudinary", cloudinaryRoutes);
 app.use("/api/volunteers", volunteerRoutes);
