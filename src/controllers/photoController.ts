@@ -90,7 +90,7 @@ export const getPhotos = asyncHandler(async (req: Request, res: Response) => {
 export const getPhoto = asyncHandler(async (req: Request, res: Response) => {
   const photo = await PhotoModel.findById(req.params.id).populate(
     "category",
-    "name type"
+    "name type",
   );
 
   if (!photo || !photo.isActive) {
@@ -158,7 +158,7 @@ export const createPhoto = asyncHandler(async (req: Request, res: Response) => {
   if (!categoryDoc) {
     res.status(400);
     throw new Error(
-      `Invalid photo category: ${category}. Please ensure the category exists and is of type 'photo'.`
+      `Invalid photo category: ${category}. Please ensure the category exists and is of type 'photo'.`,
     );
   }
 
@@ -234,7 +234,7 @@ export const uploadPhoto = asyncHandler(async (req: Request, res: Response) => {
   if (!categoryDoc) {
     res.status(400);
     throw new Error(
-      `Invalid photo category: ${category}. Please ensure the category exists and is of type 'photo'.`
+      `Invalid photo category: ${category}. Please ensure the category exists and is of type 'photo'.`,
     );
   }
 
@@ -246,15 +246,16 @@ export const uploadPhoto = asyncHandler(async (req: Request, res: Response) => {
           folder: "prapti-foundation-images",
           resource_type: "image",
           transformation: [
-            { width: 1200, height: 800, crop: "limit" },
+            { width: 1200, height: 800, crop: "fill" },
             { quality: "auto" },
             { format: "auto" },
+            { gravity: "auto" },
           ],
         },
         (error, result) => {
           if (error) reject(error);
           else resolve(result);
-        }
+        },
       )
       .end(req.file!.buffer);
   });
@@ -345,7 +346,7 @@ export const uploadMultiplePhotos = asyncHandler(
     if (!categoryDoc) {
       res.status(400);
       throw new Error(
-        `Invalid photo category: ${category}. Please ensure the category exists and is of type 'photo'.`
+        `Invalid photo category: ${category}. Please ensure the category exists and is of type 'photo'.`,
       );
     }
 
@@ -383,7 +384,7 @@ export const uploadMultiplePhotos = asyncHandler(
                   alt: altTextsArray[index] || title,
                   cloudinaryPublicId: result!.public_id,
                 });
-            }
+            },
           )
           .end(file.buffer);
       });
@@ -411,7 +412,7 @@ export const uploadMultiplePhotos = asyncHandler(
         imagesCount: uploadedImages.length,
       },
     });
-  }
+  },
 );
 
 /**
@@ -476,7 +477,7 @@ export const updatePhoto = asyncHandler(async (req: Request, res: Response) => {
     if (!categoryDoc) {
       res.status(400);
       throw new Error(
-        `Invalid photo category: ${category}. Please ensure the category exists and is of type 'photo'.`
+        `Invalid photo category: ${category}. Please ensure the category exists and is of type 'photo'.`,
       );
     }
 
@@ -553,7 +554,7 @@ export const updatePhotoWithFile = asyncHandler(
                   folder: "prapti-foundation-images",
                   resource_type: "image",
                   transformation: [
-                    { width: 1200, height: 800, crop: "limit" },
+                    { width: 1200, height: 800, crop: "fill" },
                     { quality: "auto" },
                     { format: "auto" },
                   ],
@@ -565,7 +566,7 @@ export const updatePhotoWithFile = asyncHandler(
                   } else {
                     resolve(result);
                   }
-                }
+                },
               );
               uploadStream.end(req.file!.buffer);
             });
@@ -577,7 +578,7 @@ export const updatePhotoWithFile = asyncHandler(
             });
 
             console.log(
-              `Image added to photo ${req.params.id}: ${uploadResult.public_id}`
+              `Image added to photo ${req.params.id}: ${uploadResult.public_id}`,
             );
           } catch (error: any) {
             res.status(500);
@@ -597,14 +598,14 @@ export const updatePhotoWithFile = asyncHandler(
             throw new Error(
               `Invalid image index: ${parsedIndex}. Valid range: 0-${
                 photo.images.length - 1
-              }`
+              }`,
             );
           }
 
           if (photo.images.length === 1) {
             res.status(400);
             throw new Error(
-              "Cannot delete the last image. Upload a new image first or keep at least one image."
+              "Cannot delete the last image. Upload a new image first or keep at least one image.",
             );
           }
 
@@ -619,21 +620,21 @@ export const updatePhotoWithFile = asyncHandler(
           if (imageToDelete.cloudinaryPublicId) {
             try {
               await cloudinary.uploader.destroy(
-                imageToDelete.cloudinaryPublicId
+                imageToDelete.cloudinaryPublicId,
               );
               console.log(
-                `Deleted from Cloudinary: ${imageToDelete.cloudinaryPublicId}`
+                `Deleted from Cloudinary: ${imageToDelete.cloudinaryPublicId}`,
               );
             } catch (cloudinaryError: any) {
               console.warn(
-                `Cloudinary deletion warning for ${imageToDelete.cloudinaryPublicId}: ${cloudinaryError.message}`
+                `Cloudinary deletion warning for ${imageToDelete.cloudinaryPublicId}: ${cloudinaryError.message}`,
               );
             }
           }
 
           photo.images.splice(parsedIndex, 1);
           console.log(
-            `Image at index ${parsedIndex} removed from photo ${req.params.id}`
+            `Image at index ${parsedIndex} removed from photo ${req.params.id}`,
           );
           break;
         }
@@ -649,7 +650,7 @@ export const updatePhotoWithFile = asyncHandler(
             throw new Error(
               `Invalid image index: ${parsedIndex}. Valid range: 0-${
                 photo.images.length - 1
-              }`
+              }`,
             );
           }
 
@@ -666,7 +667,7 @@ export const updatePhotoWithFile = asyncHandler(
         default:
           res.status(400);
           throw new Error(
-            `Invalid imageAction: "${imageAction}". Use: add, delete, or updateAlt`
+            `Invalid imageAction: "${imageAction}". Use: add, delete, or updateAlt`,
           );
       }
     } else if (req.file) {
@@ -679,7 +680,7 @@ export const updatePhotoWithFile = asyncHandler(
                 folder: "prapti-foundation-images",
                 resource_type: "image",
                 transformation: [
-                  { width: 1200, height: 800, crop: "limit" },
+                  { width: 1200, height: 800, crop: "fill" },
                   { quality: "auto" },
                   { format: "auto" },
                 ],
@@ -687,7 +688,7 @@ export const updatePhotoWithFile = asyncHandler(
               (error, result) => {
                 if (error) reject(error);
                 else resolve(result);
-              }
+              },
             )
             .end(req.file!.buffer);
         });
@@ -734,7 +735,7 @@ export const updatePhotoWithFile = asyncHandler(
       if (!categoryDoc) {
         res.status(400);
         throw new Error(
-          `Invalid photo category: ${category}. Please ensure the category exists and is of type 'photo'.`
+          `Invalid photo category: ${category}. Please ensure the category exists and is of type 'photo'.`,
         );
       }
 
@@ -757,7 +758,7 @@ export const updatePhotoWithFile = asyncHandler(
       message: "Photo updated successfully",
       data: updatedPhoto,
     });
-  }
+  },
 );
 /**
  * Delete photo
@@ -774,7 +775,7 @@ export const deletePhoto = asyncHandler(async (req: Request, res: Response) => {
 
   // Delete all images from Cloudinary
   const deletePromises = photo.images.map((image) =>
-    cloudinary.uploader.destroy(image.cloudinaryPublicId)
+    cloudinary.uploader.destroy(image.cloudinaryPublicId),
   );
 
   await Promise.allSettled(deletePromises);
@@ -827,7 +828,7 @@ export const getPhotosByCategory = asyncHandler(
         },
       },
     });
-  }
+  },
 );
 
 /**
@@ -877,5 +878,5 @@ export const searchPhotos = asyncHandler(
         },
       },
     });
-  }
+  },
 );

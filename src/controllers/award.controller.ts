@@ -27,7 +27,7 @@ export const getAwardPost = asyncHandler(
         error: error.message,
       });
     }
-  }
+  },
 );
 /**
  * @desc    Create all award posts
@@ -81,7 +81,7 @@ export const createAwardPost = asyncHandler(
     if (!categoryDoc) {
       res.status(400);
       throw new Error(
-        `Invalid award category: ${category}. Please ensure the category exists and is of type 'award'.`
+        `Invalid award category: ${category}. Please ensure the category exists and is of type 'award'.`,
       );
     }
     const award = await AwardPostModel.create({
@@ -97,7 +97,7 @@ export const createAwardPost = asyncHandler(
       message: "Award Info created successfully",
       data: award,
     });
-  }
+  },
 );
 
 /**
@@ -111,9 +111,13 @@ export const uploadAward = asyncHandler(async (req: Request, res: Response) => {
     throw new Error("No file uploaded");
   }
 
+  if (req.file.size === 0) {
+    res.status(400);
+    throw new Error("Uploaded file is empty");
+  }
+
   const { alt, title, category, description } = req.body;
 
-  // Validate required fields
   if (!title || typeof title !== "string") {
     res.status(400);
     throw new Error("Title is required and must be a string");
@@ -124,74 +128,81 @@ export const uploadAward = asyncHandler(async (req: Request, res: Response) => {
     throw new Error("Category is required and must be a string");
   }
 
-  // Find category by ID or name
   let categoryDoc;
-
   if (Types.ObjectId.isValid(category)) {
-    categoryDoc = await CategoryModel.findOne({
-      _id: category,
-      type: "award",
-    });
+    categoryDoc = await CategoryModel.findOne({ _id: category, type: "award" });
   }
-
   if (!categoryDoc) {
     categoryDoc = await CategoryModel.findOne({
       name: category,
       type: "award",
     });
   }
-
   if (!categoryDoc) {
     res.status(400);
-    throw new Error(
-      `Invalid award category: ${category}. Category must exist and be of type 'award'.`
-    );
+    throw new Error(`Invalid award category: ${category}.`);
   }
 
-  // Upload to Cloudinary
-  const uploadResult = await new Promise<any>((resolve, reject) => {
-    cloudinary.uploader
-      .upload_stream(
-        {
-          folder: "prapti-foundation-awards",
-          resource_type: "image",
-          transformation: [
-            { width: 1200, height: 800, crop: "limit" },
-            { quality: "auto" },
-            { format: "auto" },
-          ],
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      )
-      .end(req.file!.buffer);
-  });
+  // Upload to Cloudinary — auto-resize happens here
+  let uploadResult: any;
+  try {
+    uploadResult = await new Promise<any>((resolve, reject) => {
+      cloudinary.uploader
+        .upload_stream(
+          {
+            folder: "prapti-foundation-awards",
+            resource_type: "image",
+            transformation: [
+              { width: 1200, height: 800, crop: "fill", gravity: "auto" }, // ← auto-resize
+              { quality: "auto" },
+              { format: "auto" },
+            ],
+          },
+          (error, result) => {
+            if (error) {
+              logger.error("Cloudinary upload_stream error:", error);
+              reject(error);
+            } else {
+              resolve(result);
+            }
+          },
+        )
+        .end(req.file!.buffer);
+    });
+  } catch (error: any) {
+    res.status(502);
+    throw new Error(`Image upload failed: ${error.message}`);
+  }
 
-  // Create award record
-  const award = await AwardPostModel.create({
-    images: [
-      {
-        src: uploadResult.secure_url,
-        alt: alt || title,
-        cloudinaryPublicId: uploadResult.public_id,
-      },
-    ],
-    title,
-    category: categoryDoc._id,
-    description: description || undefined,
-  });
+  // Save to DB — wrapped so we can clean up Cloudinary on failure
+  let award;
+  try {
+    award = await AwardPostModel.create({
+      images: [
+        {
+          src: uploadResult.secure_url,
+          alt: alt || title,
+          cloudinaryPublicId: uploadResult.public_id,
+        },
+      ],
+      title,
+      category: categoryDoc._id,
+      description: description || undefined,
+    });
+  } catch (error: any) {
+    // Orphan prevention: delete the uploaded image if DB write fails
+    await cloudinary.uploader.destroy(uploadResult.public_id).catch(() => {});
+    logger.error("Award DB create failed:", error);
+    res.status(400);
+    throw new Error(error.message);
+  }
 
   await award.populate("category");
 
   res.status(201).json({
     success: true,
     message: "Award uploaded successfully",
-    data: {
-      award,
-      imagesCount: 1,
-    },
+    data: { award, imagesCount: 1 },
   });
 });
 
@@ -244,7 +255,7 @@ export const uploadMultipleAwards = asyncHandler(
     if (!categoryDoc) {
       res.status(400);
       throw new Error(
-        `Invalid award category: ${category}. Ensure the category exists and is type 'award'.`
+        `Invalid award category: ${category}. Ensure the category exists and is type 'award'.`,
       );
     }
 
@@ -272,9 +283,10 @@ export const uploadMultipleAwards = asyncHandler(
             folder: "prapti-foundation-awards",
             resource_type: "image",
             transformation: [
-              { width: 1200, height: 800, crop: "limit" },
+              { width: 1200, height: 800, crop: "fill" },
               { quality: "auto" },
               { format: "auto" },
+              { gravity: "auto" },
             ],
           },
           (error, result) => {
@@ -290,7 +302,7 @@ export const uploadMultipleAwards = asyncHandler(
               alt: altTextsArray[index] || title,
               cloudinaryPublicId: result.public_id,
             });
-          }
+          },
         );
 
         uploadStream.end(file.buffer);
@@ -306,17 +318,30 @@ export const uploadMultipleAwards = asyncHandler(
       throw new Error(
         `Image upload failed: ${
           error instanceof Error ? error.message : "Unknown error"
-        }`
+        }`,
       );
     }
 
     // Create award
-    const award = await AwardPostModel.create({
-      images: uploadedImages,
-      title,
-      category: categoryDoc._id,
-      description: description || undefined,
-    });
+    let award;
+    try {
+      award = await AwardPostModel.create({
+        images: uploadedImages,
+        title,
+        category: categoryDoc._id,
+        description: description || undefined,
+      });
+    } catch (error: any) {
+      // Clean up all uploaded images on DB failure
+      await Promise.allSettled(
+        uploadedImages.map((img) =>
+          cloudinary.uploader.destroy(img.cloudinaryPublicId),
+        ),
+      );
+      logger.error("Award DB create failed:", error);
+      res.status(400);
+      throw new Error(error.message);
+    }
 
     await award.populate("category", "name type");
 
@@ -328,7 +353,7 @@ export const uploadMultipleAwards = asyncHandler(
         imagesCount: uploadedImages.length,
       },
     });
-  }
+  },
 );
 
 /**
@@ -351,7 +376,7 @@ export const getByIdAwardPost = asyncHandler(
 
       const award = await AwardPostModel.findById(id).populate(
         "category",
-        "name type"
+        "name type",
       );
 
       if (!award) {
@@ -371,7 +396,7 @@ export const getByIdAwardPost = asyncHandler(
         error: error.message,
       });
     }
-  }
+  },
 );
 
 /**
@@ -421,9 +446,10 @@ export const updateAwardPost = asyncHandler(
                   folder: "prapti-foundation-awards",
                   resource_type: "image",
                   transformation: [
-                    { width: 1200, height: 800, crop: "limit" },
+                    { width: 1200, height: 800, crop: "fill" },
                     { quality: "auto" },
                     { format: "auto" },
+                    { gravity: "auto" },
                   ],
                 },
                 (error, result) => {
@@ -433,7 +459,7 @@ export const updateAwardPost = asyncHandler(
                   } else {
                     resolve(result);
                   }
-                }
+                },
               );
               uploadStream.end(req.file!.buffer);
             });
@@ -445,7 +471,7 @@ export const updateAwardPost = asyncHandler(
             });
 
             logger.info(
-              `Image added to award ${id}: ${uploadResult.public_id}`
+              `Image added to award ${id}: ${uploadResult.public_id}`,
             );
           } catch (error: any) {
             res.status(500);
@@ -466,7 +492,7 @@ export const updateAwardPost = asyncHandler(
             throw new Error(
               `Invalid image index: ${parsedIndex}. Valid range: 0-${
                 award.images.length - 1
-              }`
+              }`,
             );
           }
 
@@ -475,7 +501,7 @@ export const updateAwardPost = asyncHandler(
           if (award.images.length === 1) {
             res.status(400);
             throw new Error(
-              "Cannot delete the last image. Upload a new image first or keep at least one image."
+              "Cannot delete the last image. Upload a new image first or keep at least one image.",
             );
           }
 
@@ -490,15 +516,15 @@ export const updateAwardPost = asyncHandler(
           if (imageToDelete.cloudinaryPublicId) {
             try {
               await cloudinary.uploader.destroy(
-                imageToDelete.cloudinaryPublicId
+                imageToDelete.cloudinaryPublicId,
               );
               logger.info(
-                `Deleted from Cloudinary: ${imageToDelete.cloudinaryPublicId}`
+                `Deleted from Cloudinary: ${imageToDelete.cloudinaryPublicId}`,
               );
             } catch (cloudinaryError: any) {
               // Log but don't fail the request - image might already be deleted
               logger.warn(
-                `Cloudinary deletion warning for ${imageToDelete.cloudinaryPublicId}: ${cloudinaryError.message}`
+                `Cloudinary deletion warning for ${imageToDelete.cloudinaryPublicId}: ${cloudinaryError.message}`,
               );
             }
           }
@@ -520,7 +546,7 @@ export const updateAwardPost = asyncHandler(
             throw new Error(
               `Invalid image index: ${parsedIndex}. Valid range: 0-${
                 award.images.length - 1
-              }`
+              }`,
             );
           }
 
@@ -537,7 +563,7 @@ export const updateAwardPost = asyncHandler(
         default:
           res.status(400);
           throw new Error(
-            `Invalid imageAction: "${imageAction}". Use: add, delete, or updateAlt`
+            `Invalid imageAction: "${imageAction}". Use: add, delete, or updateAlt`,
           );
       }
     }
@@ -570,7 +596,7 @@ export const updateAwardPost = asyncHandler(
       if (!categoryDoc) {
         res.status(400);
         throw new Error(
-          `Invalid award category: "${category}". Please select a valid category.`
+          `Invalid award category: "${category}". Please select a valid category.`,
         );
       }
 
@@ -606,7 +632,7 @@ export const updateAwardPost = asyncHandler(
     } catch (error: any) {
       if (error.name === "ValidationError") {
         const validationErrors = Object.values(error.errors).map(
-          (err: any) => err.message
+          (err: any) => err.message,
         );
         res.status(400);
         throw new Error(`Validation error: ${validationErrors.join(", ")}`);
@@ -614,7 +640,7 @@ export const updateAwardPost = asyncHandler(
       logger.error(`Failed to save award: ${error.message}`);
       throw error;
     }
-  }
+  },
 );
 
 /**
@@ -643,16 +669,16 @@ export const delAwardPost = asyncHandler(
       try {
         if (image.cloudinaryPublicId) {
           const deleteResult = await cloudinary.uploader.destroy(
-            image.cloudinaryPublicId
+            image.cloudinaryPublicId,
           );
           logger.info(
-            `Deleted image from Cloudinary: ${image.cloudinaryPublicId}, result: ${deleteResult.result}`
+            `Deleted image from Cloudinary: ${image.cloudinaryPublicId}, result: ${deleteResult.result}`,
           );
         }
       } catch (cloudinaryError) {
         // Log error but don't fail the deletion
         logger.error(
-          `Failed to delete image from Cloudinary: ${cloudinaryError}`
+          `Failed to delete image from Cloudinary: ${cloudinaryError}`,
         );
       }
     });
@@ -669,5 +695,5 @@ export const delAwardPost = asyncHandler(
       success: true,
       message: "Award post deleted successfully",
     });
-  }
+  },
 );

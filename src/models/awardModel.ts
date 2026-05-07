@@ -26,17 +26,6 @@ const awardPostSchema: Schema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "Category",
       required: [true, "Please add a category"],
-      validate: {
-        validator: async function (value: mongoose.Types.ObjectId) {
-          const CategoryModel = mongoose.model("Category");
-          const category = await CategoryModel.findOne({
-            _id: value,
-            type: "award",
-          });
-          return !!category;
-        },
-        message: "Invalid award category",
-      },
     },
     images: {
       type: [imageSchema],
@@ -51,7 +40,7 @@ const awardPostSchema: Schema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Indexes for better query performance

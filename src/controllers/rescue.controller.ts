@@ -46,7 +46,7 @@ export const getRescuePost = asyncHandler(
         pages: Math.ceil(total / limitNum),
       },
     });
-  }
+  },
 );
 
 /**
@@ -74,7 +74,7 @@ export const getByIdRescuePost = asyncHandler(
       success: true,
       data: rescuePost,
     });
-  }
+  },
 );
 
 /**
@@ -107,12 +107,12 @@ export const createRescuePost = asyncHandler(
                 folder: "prapti-foundation-rescue",
                 resource_type: "image",
                 transformation: [
-                  { width: 1200, height: 800, crop: "limit" },
+                  { width: 1200, height: 800, crop: "fill" },
                   { quality: "auto" },
                   { format: "auto" },
                 ],
               },
-              (error, result) => (error ? reject(error) : resolve(result))
+              (error, result) => (error ? reject(error) : resolve(result)),
             )
             .end(files.beforeImage[0].buffer);
         }),
@@ -123,12 +123,12 @@ export const createRescuePost = asyncHandler(
                 folder: "prapti-foundation-rescue",
                 resource_type: "image",
                 transformation: [
-                  { width: 1200, height: 800, crop: "limit" },
+                  { width: 1200, height: 800, crop: "fill" },
                   { quality: "auto" },
                   { format: "auto" },
                 ],
               },
-              (error, result) => (error ? reject(error) : resolve(result))
+              (error, result) => (error ? reject(error) : resolve(result)),
             )
             .end(files.afterImage[0].buffer);
         }),
@@ -153,7 +153,7 @@ export const createRescuePost = asyncHandler(
       res.status(500);
       throw new Error(`Failed to upload images: ${error.message}`);
     }
-  }
+  },
 );
 /**
  * @desc    Update rescue post
@@ -202,7 +202,7 @@ export const updateRescuePost = asyncHandler(
                   folder: "prapti-foundation-rescue",
                   resource_type: "image",
                   transformation: [
-                    { width: 1200, height: 800, crop: "limit" },
+                    { width: 1200, height: 800, crop: "fill" },
                     { quality: "auto" },
                     { format: "auto" },
                   ],
@@ -214,7 +214,7 @@ export const updateRescuePost = asyncHandler(
                   } else {
                     resolve(result);
                   }
-                }
+                },
               );
               uploadStream.end(req.file!.buffer);
             });
@@ -243,7 +243,7 @@ export const updateRescuePost = asyncHandler(
             }
 
             logger.info(
-              `${imageType} image updated for rescue ${id}: ${uploadResult.public_id}`
+              `${imageType} image updated for rescue ${id}: ${uploadResult.public_id}`,
             );
           } catch (error: any) {
             res.status(500);
@@ -255,7 +255,7 @@ export const updateRescuePost = asyncHandler(
         case "delete": {
           res.status(400);
           throw new Error(
-            "Cannot delete images. Use 'add' action to replace instead."
+            "Cannot delete images. Use 'add' action to replace instead.",
           );
         }
 
@@ -292,7 +292,7 @@ export const updateRescuePost = asyncHandler(
     } catch (error: any) {
       if (error.name === "ValidationError") {
         const validationErrors = Object.values(error.errors).map(
-          (err: any) => err.message
+          (err: any) => err.message,
         );
         res.status(400);
         throw new Error(`Validation error: ${validationErrors.join(", ")}`);
@@ -300,7 +300,7 @@ export const updateRescuePost = asyncHandler(
       logger.error(`Failed to save rescue post: ${error.message}`);
       throw error;
     }
-  }
+  },
 );
 
 /**
@@ -333,11 +333,11 @@ export const delRescuePost = asyncHandler(
         try {
           const result = await cloudinary.uploader.destroy(publicId!);
           logger.info(
-            `Deleted image from Cloudinary: ${publicId}, result: ${result.result}`
+            `Deleted image from Cloudinary: ${publicId}, result: ${result.result}`,
           );
         } catch (error: any) {
           logger.error(
-            `Failed to delete image from Cloudinary: ${error.message}`
+            `Failed to delete image from Cloudinary: ${error.message}`,
           );
         }
       });
@@ -351,7 +351,7 @@ export const delRescuePost = asyncHandler(
       success: true,
       message: "Rescue post deleted successfully",
     });
-  }
+  },
 );
 
 /**
@@ -363,7 +363,7 @@ function extractPublicIdFromUrl(url: string): string | null {
     if (matches && matches[1]) {
       // Check if there's a folder path
       const folderMatch = url.match(
-        /\/upload\/(?:v\d+\/)?(.+)\.(jpg|jpeg|png|gif|webp)$/i
+        /\/upload\/(?:v\d+\/)?(.+)\.(jpg|jpeg|png|gif|webp)$/i,
       );
       if (folderMatch && folderMatch[1]) {
         return folderMatch[1];
