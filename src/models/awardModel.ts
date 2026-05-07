@@ -20,7 +20,7 @@ const awardPostSchema: Schema = new Schema(
     },
     description: {
       type: String,
-      required: [true, "Please add content"],
+      required: false,
     },
     category: {
       type: Schema.Types.ObjectId,

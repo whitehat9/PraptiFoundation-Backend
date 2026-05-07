@@ -106,12 +106,44 @@ export const createAwardPost = asyncHandler(
  * @access Private (Admin only)
  */
 export const uploadAward = asyncHandler(async (req: Request, res: Response) => {
+  logger.info("Upload award request received", {
+    hasFile: !!req.file,
+    body: req.body,
+    headers: req.headers,
+  });
+
+  // Check Cloudinary configuration
+  if (
+    !process.env.CLOUDINARY_CLOUD_NAME ||
+    !process.env.CLOUDINARY_API_KEY ||
+    !process.env.CLOUDINARY_API_SECRET
+  ) {
+    logger.error("Cloudinary configuration missing", {
+      hasCloudName: !!process.env.CLOUDINARY_CLOUD_NAME,
+      hasApiKey: !!process.env.CLOUDINARY_API_KEY,
+      hasApiSecret: !!process.env.CLOUDINARY_API_SECRET,
+    });
+    res.status(500);
+    throw new Error("Cloudinary configuration is incomplete");
+  }
+
   if (!req.file) {
+    logger.error("No file uploaded in request");
     res.status(400);
     throw new Error("No file uploaded");
   }
 
   const { alt, title, category, description } = req.body;
+
+  logger.info("Extracted request data", {
+    alt,
+    title,
+    category,
+    description,
+    fileName: req.file.originalname,
+    fileSize: req.file.size,
+    mimeType: req.file.mimetype,
+  });
 
   // Validate required fields
   if (!title || typeof title !== "string") {
@@ -127,11 +159,17 @@ export const uploadAward = asyncHandler(async (req: Request, res: Response) => {
   // Find category by ID or name
   let categoryDoc;
 
+  logger.info("Looking for category", {
+    category,
+    isValidObjectId: Types.ObjectId.isValid(category),
+  });
+
   if (Types.ObjectId.isValid(category)) {
     categoryDoc = await CategoryModel.findOne({
       _id: category,
       type: "award",
     });
+    logger.info("Category search by ID result", { found: !!categoryDoc });
   }
 
   if (!categoryDoc) {
@@ -139,9 +177,11 @@ export const uploadAward = asyncHandler(async (req: Request, res: Response) => {
       name: category,
       type: "award",
     });
+    logger.info("Category search by name result", { found: !!categoryDoc });
   }
 
   if (!categoryDoc) {
+    logger.error("Category not found", { category });
     res.status(400);
     throw new Error(
       `Invalid award category: ${category}. Category must exist and be of type 'award'.`,
@@ -149,39 +189,78 @@ export const uploadAward = asyncHandler(async (req: Request, res: Response) => {
   }
 
   // Upload to Cloudinary
-  const uploadResult = await new Promise<any>((resolve, reject) => {
-    cloudinary.uploader
-      .upload_stream(
-        {
-          folder: "prapti-foundation-awards",
-          resource_type: "image",
-          transformation: [
-            { width: 1200, height: 800, crop: "limit" },
-            { quality: "auto" },
-            { format: "auto" },
-          ],
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        },
-      )
-      .end(req.file!.buffer);
-  });
+  logger.info("Starting Cloudinary upload");
+  let uploadResult;
+  try {
+    uploadResult = await new Promise<any>((resolve, reject) => {
+      cloudinary.uploader
+        .upload_stream(
+          {
+            folder: "prapti-foundation-awards",
+            resource_type: "image",
+            transformation: [
+              { width: 1200, height: 800, crop: "limit" },
+              { quality: "auto" },
+              { format: "auto" },
+            ],
+          },
+          (error, result) => {
+            if (error) {
+              logger.error("Cloudinary upload error", { error: error.message });
+              reject(error);
+            } else {
+              logger.info("Cloudinary upload success", {
+                publicId: result?.public_id,
+              });
+              resolve(result);
+            }
+          },
+        )
+        .end(req.file!.buffer);
+    });
+  } catch (error) {
+    logger.error("Failed to upload to Cloudinary", {
+      error: error instanceof Error ? error.message : error,
+    });
+    res.status(500);
+    throw new Error(
+      `Failed to upload image: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
+  }
 
   // Create award record
-  const award = await AwardPostModel.create({
-    images: [
-      {
-        src: uploadResult.secure_url,
-        alt: alt || title,
-        cloudinaryPublicId: uploadResult.public_id,
-      },
-    ],
-    title,
-    category: categoryDoc._id,
-    description: description || undefined,
-  });
+  logger.info("Creating award record in database");
+  let award;
+  try {
+    award = await AwardPostModel.create({
+      images: [
+        {
+          src: uploadResult.secure_url,
+          alt: alt || title,
+          cloudinaryPublicId: uploadResult.public_id,
+        },
+      ],
+      title,
+      category: categoryDoc._id,
+      description: description || undefined,
+    });
+    logger.info("Award record created successfully", { awardId: award._id });
+  } catch (error) {
+    logger.error("Failed to create award record", {
+      error: error instanceof Error ? error.message : error,
+    });
+    // Clean up Cloudinary upload if DB fails
+    try {
+      await cloudinary.uploader.destroy(uploadResult.public_id);
+      logger.info("Cleaned up Cloudinary upload after DB failure");
+    } catch (cleanupError) {
+      logger.error("Failed to clean up Cloudinary upload", { cleanupError });
+    }
+    res.status(500);
+    throw new Error(
+      `Failed to create award: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
+  }
 
   await award.populate("category");
 
