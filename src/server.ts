@@ -8,40 +8,50 @@ import compression from "compression";
 import corsOptions from "./config/corOptions";
 import logger from "./utils/logger";
 import connectDB from "./config/dbConnection";
-import { routeNotFound } from "./middleware/errorMiddleware";
+import { errorHandler, routeNotFound } from "./middleware/errorMiddleware";
 import auth from "./routes/auth";
 import blogs from "./routes/blog";
 import cloudinaryRoutes from "./routes/cloudinary";
 import volunteerRoutes from "./routes/volunteer";
 import contactRoutes from "./routes/contact";
+//updated
 import categoryRoutes from "./routes/category";
 import photosRoutes from "./routes/photos";
 import videosRoutes from "./routes/video";
 import visitorRoutes from "./routes/visitor";
+//new
 import impactRoutes from "./routes/impact";
 import testimonialsRoutes from "./routes/testimonials";
+//
 import awardsRoutes from "./routes/awards";
 import rescueRoutes from "./routes/rescue";
 
+// Create Express application
+const app: Application = express();
 dotenv.config();
 
-const app: Application = express();
 const PORT = process.env.PORT || 8080;
 
 // Security middleware
 app.use(helmet());
-app.use(compression());
+
+//CORS - must come before compression
 app.use(cors(corsOptions));
+
+// Compression middleware
+app.use(compression());
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
+// Logging middleware
 app.use(
   morgan("combined", {
     stream: { write: (message: string) => logger.info(message.trim()) },
   }),
 );
 
-// Health check endpoints
+// Health check endpoints (no rate limiting)
 app.get("/", (req: Request, res: Response) => {
   res.status(200).json({
     success: true,
@@ -49,42 +59,43 @@ app.get("/", (req: Request, res: Response) => {
     version: "1.0.0",
   });
 });
-app.get("/_ah/health", (_req: Request, res: Response) =>
-  res.status(200).send("OK"),
-);
-app.get("/_ah/start", (_req: Request, res: Response) =>
-  res.status(200).send("OK"),
-);
-app.get("/favicon.ico", (_req: Request, res: Response) =>
-  res.status(204).end(),
-);
+app.get("/_ah/health", (req: Request, res: Response) => {
+  res.status(200).send("OK");
+});
 
-// Routes
+app.get("/_ah/start", (req: Request, res: Response) => {
+  res.status(200).send("OK");
+});
+
+// Handle favicon.ico requests silently
+app.get("/favicon.ico", (req: Request, res: Response) => {
+  res.status(204).end();
+});
+
+app.listen(PORT, () => {
+  console.log(`Listening to http://localhost:${PORT}`);
+});
+
 app.use("/api/auth", auth);
 app.use("/api/blogs", blogs);
 app.use("/api/cloudinary", cloudinaryRoutes);
 app.use("/api/volunteers", volunteerRoutes);
 app.use("/api/messages", contactRoutes);
+//
 app.use("/api/categories", categoryRoutes);
 app.use("/api/photos", photosRoutes);
 app.use("/api/videos", videosRoutes);
 app.use("/api/visitor", visitorRoutes);
+//
 app.use("/api/impact", impactRoutes);
 app.use("/api/testimonials", testimonialsRoutes);
+//
 app.use("/api/awards", awardsRoutes);
 app.use("/api/rescue", rescueRoutes);
 
-// 404 — must come after all routes
-app.use(routeNotFound);
-
-// Global error handler — must be last
+// Global error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  // Preserve statusCode set by controllers (401, 400, 404, etc.)
-  // Only default to 500 if nothing was set
-  const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
-
-  logger.error("Global error handler:", {
-    statusCode,
+  console.error("Global error handler:", {
     message: err.message,
     stack: err.stack,
     url: req.url,
@@ -92,23 +103,19 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
     timestamp: new Date().toISOString(),
   });
 
-  res.status(statusCode).json({
+  res.status(500).json({
     success: false,
-    error: statusCode === 500 ? "Something went wrong!" : "Request failed",
+    error: "Something went wrong!",
     message:
       process.env.NODE_ENV === "development"
         ? err.message
-        : statusCode === 500
-          ? "Internal server error"
-          : err.message,
+        : "Internal server error",
   });
 });
 
+// Centralized Error Handler
+app.use(routeNotFound);
+app.use(errorHandler);
+
 // Connect to MongoDB
 connectDB();
-
-app.listen(PORT, () => {
-  logger.info(`Server running on http://localhost:${PORT}`);
-});
-
-export default app;

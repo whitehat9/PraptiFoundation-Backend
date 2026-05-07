@@ -106,46 +106,18 @@ export const createAwardPost = asyncHandler(
  * @access Private (Admin only)
  */
 export const uploadAward = asyncHandler(async (req: Request, res: Response) => {
-  logger.info("Upload award request received", {
-    hasFile: !!req.file,
-    body: req.body,
-    headers: req.headers,
-  });
-
-  // Check Cloudinary configuration
-  if (
-    !process.env.CLOUDINARY_CLOUD_NAME ||
-    !process.env.CLOUDINARY_API_KEY ||
-    !process.env.CLOUDINARY_API_SECRET
-  ) {
-    logger.error("Cloudinary configuration missing", {
-      hasCloudName: !!process.env.CLOUDINARY_CLOUD_NAME,
-      hasApiKey: !!process.env.CLOUDINARY_API_KEY,
-      hasApiSecret: !!process.env.CLOUDINARY_API_SECRET,
-    });
-    res.status(500);
-    throw new Error("Cloudinary configuration is incomplete");
-  }
-
   if (!req.file) {
-    logger.error("No file uploaded in request");
     res.status(400);
     throw new Error("No file uploaded");
   }
 
+  if (req.file.size === 0) {
+    res.status(400);
+    throw new Error("Uploaded file is empty");
+  }
+
   const { alt, title, category, description } = req.body;
 
-  logger.info("Extracted request data", {
-    alt,
-    title,
-    category,
-    description,
-    fileName: req.file.originalname,
-    fileSize: req.file.size,
-    mimeType: req.file.mimetype,
-  });
-
-  // Validate required fields
   if (!title || typeof title !== "string") {
     res.status(400);
     throw new Error("Title is required and must be a string");
@@ -156,41 +128,23 @@ export const uploadAward = asyncHandler(async (req: Request, res: Response) => {
     throw new Error("Category is required and must be a string");
   }
 
-  // Find category by ID or name
   let categoryDoc;
-
-  logger.info("Looking for category", {
-    category,
-    isValidObjectId: Types.ObjectId.isValid(category),
-  });
-
   if (Types.ObjectId.isValid(category)) {
-    categoryDoc = await CategoryModel.findOne({
-      _id: category,
-      type: "award",
-    });
-    logger.info("Category search by ID result", { found: !!categoryDoc });
+    categoryDoc = await CategoryModel.findOne({ _id: category, type: "award" });
   }
-
   if (!categoryDoc) {
     categoryDoc = await CategoryModel.findOne({
       name: category,
       type: "award",
     });
-    logger.info("Category search by name result", { found: !!categoryDoc });
   }
-
   if (!categoryDoc) {
-    logger.error("Category not found", { category });
     res.status(400);
-    throw new Error(
-      `Invalid award category: ${category}. Category must exist and be of type 'award'.`,
-    );
+    throw new Error(`Invalid award category: ${category}.`);
   }
 
-  // Upload to Cloudinary
-  logger.info("Starting Cloudinary upload");
-  let uploadResult;
+  // Upload to Cloudinary — auto-resize happens here
+  let uploadResult: any;
   try {
     uploadResult = await new Promise<any>((resolve, reject) => {
       cloudinary.uploader
@@ -199,37 +153,28 @@ export const uploadAward = asyncHandler(async (req: Request, res: Response) => {
             folder: "prapti-foundation-awards",
             resource_type: "image",
             transformation: [
-              { width: 1200, height: 800, crop: "limit" },
+              { width: 1200, height: 800, crop: "fill", gravity: "auto" }, // ← auto-resize
               { quality: "auto" },
               { format: "auto" },
             ],
           },
           (error, result) => {
             if (error) {
-              logger.error("Cloudinary upload error", { error: error.message });
+              logger.error("Cloudinary upload_stream error:", error);
               reject(error);
             } else {
-              logger.info("Cloudinary upload success", {
-                publicId: result?.public_id,
-              });
               resolve(result);
             }
           },
         )
         .end(req.file!.buffer);
     });
-  } catch (error) {
-    logger.error("Failed to upload to Cloudinary", {
-      error: error instanceof Error ? error.message : error,
-    });
-    res.status(500);
-    throw new Error(
-      `Failed to upload image: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
+  } catch (error: any) {
+    res.status(502);
+    throw new Error(`Image upload failed: ${error.message}`);
   }
 
-  // Create award record
-  logger.info("Creating award record in database");
+  // Save to DB — wrapped so we can clean up Cloudinary on failure
   let award;
   try {
     award = await AwardPostModel.create({
@@ -244,22 +189,12 @@ export const uploadAward = asyncHandler(async (req: Request, res: Response) => {
       category: categoryDoc._id,
       description: description || undefined,
     });
-    logger.info("Award record created successfully", { awardId: award._id });
-  } catch (error) {
-    logger.error("Failed to create award record", {
-      error: error instanceof Error ? error.message : error,
-    });
-    // Clean up Cloudinary upload if DB fails
-    try {
-      await cloudinary.uploader.destroy(uploadResult.public_id);
-      logger.info("Cleaned up Cloudinary upload after DB failure");
-    } catch (cleanupError) {
-      logger.error("Failed to clean up Cloudinary upload", { cleanupError });
-    }
-    res.status(500);
-    throw new Error(
-      `Failed to create award: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
+  } catch (error: any) {
+    // Orphan prevention: delete the uploaded image if DB write fails
+    await cloudinary.uploader.destroy(uploadResult.public_id).catch(() => {});
+    logger.error("Award DB create failed:", error);
+    res.status(400);
+    throw new Error(error.message);
   }
 
   await award.populate("category");
@@ -267,10 +202,7 @@ export const uploadAward = asyncHandler(async (req: Request, res: Response) => {
   res.status(201).json({
     success: true,
     message: "Award uploaded successfully",
-    data: {
-      award,
-      imagesCount: 1,
-    },
+    data: { award, imagesCount: 1 },
   });
 });
 
@@ -351,14 +283,15 @@ export const uploadMultipleAwards = asyncHandler(
             folder: "prapti-foundation-awards",
             resource_type: "image",
             transformation: [
-              { width: 1200, height: 800, crop: "fill", gravity: "auto" },
+              { width: 1200, height: 800, crop: "fill" },
               { quality: "auto" },
               { format: "auto" },
+              { gravity: "auto" },
             ],
           },
           (error, result) => {
             if (error) {
-              logger.error("Cloudinary upload error:", error);
+              console.error("Cloudinary upload error:", error);
               return reject(error);
             }
             if (!result) {
@@ -380,8 +313,8 @@ export const uploadMultipleAwards = asyncHandler(
     try {
       uploadedImages = await Promise.all(uploadPromises);
     } catch (error) {
-      logger.error("Failed to upload images to Cloudinary:", error);
-      res.status(502);
+      console.error("Failed to upload images:", error);
+      res.status(500);
       throw new Error(
         `Image upload failed: ${
           error instanceof Error ? error.message : "Unknown error"
@@ -389,7 +322,7 @@ export const uploadMultipleAwards = asyncHandler(
       );
     }
 
-    // Create award — wrapped to clean up Cloudinary on DB failure
+    // Create award
     let award;
     try {
       award = await AwardPostModel.create({
@@ -399,6 +332,7 @@ export const uploadMultipleAwards = asyncHandler(
         description: description || undefined,
       });
     } catch (error: any) {
+      // Clean up all uploaded images on DB failure
       await Promise.allSettled(
         uploadedImages.map((img) =>
           cloudinary.uploader.destroy(img.cloudinaryPublicId),
@@ -512,9 +446,10 @@ export const updateAwardPost = asyncHandler(
                   folder: "prapti-foundation-awards",
                   resource_type: "image",
                   transformation: [
-                    { width: 1200, height: 800, crop: "limit" },
+                    { width: 1200, height: 800, crop: "fill" },
                     { quality: "auto" },
                     { format: "auto" },
+                    { gravity: "auto" },
                   ],
                 },
                 (error, result) => {

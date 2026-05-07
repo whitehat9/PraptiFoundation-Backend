@@ -1,10 +1,10 @@
-import mongoose, { Document, Schema, Types } from "mongoose";
+import mongoose, { Document, Schema } from "mongoose";
 import { IImage, imageSchema } from "./photoModel";
 
 export interface IAwardPost extends Document {
   title: string;
   description: string;
-  category: Types.ObjectId;
+  category: mongoose.Types.ObjectId;
   images: IImage[];
   createdAt: Date;
   updatedAt: Date;
@@ -20,13 +20,12 @@ const awardPostSchema: Schema = new Schema(
     },
     description: {
       type: String,
-      required: false,
+      required: [true, "Please add content"],
     },
     category: {
       type: Schema.Types.ObjectId,
       ref: "Category",
       required: [true, "Please add a category"],
-      // Validation is handled in the controller before .create()/.save()
     },
     images: {
       type: [imageSchema],
