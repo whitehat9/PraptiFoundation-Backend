@@ -25,6 +25,9 @@ import testimonialsRoutes from "./routes/testimonials";
 //
 import awardsRoutes from "./routes/awards";
 import rescueRoutes from "./routes/rescue";
+//
+import copyAwardRoutes from "./routes/copyAward";
+import copyPhotoRoutes from "./routes/copyPhoto";
 
 // Create Express application
 const app: Application = express();
@@ -92,6 +95,9 @@ app.use("/api/testimonials", testimonialsRoutes);
 //
 app.use("/api/awards", awardsRoutes);
 app.use("/api/rescue", rescueRoutes);
+//
+app.use("/api/copy-awards", copyAwardRoutes);
+app.use("/api/copy-photos", copyPhotoRoutes);
 
 // Global error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {

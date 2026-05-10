@@ -1,5 +1,7 @@
 import mongoose, { Document, Schema } from "mongoose";
 
+export type VolunteerStatus = "pending" | "approved" | "rejected";
+
 export interface IVolunteer extends Document {
   firstName: string;
   lastName: string;
@@ -13,6 +15,11 @@ export interface IVolunteer extends Document {
   interests: string[];
   experience: string;
   reason: string;
+  isRead: boolean;
+  status: VolunteerStatus;
+  rejectionReason?: string;
+  approvedAt?: Date;
+  rejectedAt?: Date;
   createdAt: Date;
   submittedAt: Date;
 }
@@ -115,15 +122,34 @@ const VolunteerSchema = new Schema<IVolunteer>(
       trim: true,
       maxlength: [1000, "Reason cannot exceed 1000 characters"],
     },
+    isRead: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+      index: true,
+    },
+    rejectionReason: {
+      type: String,
+      trim: true,
+      maxlength: [500, "Rejection reason cannot exceed 500 characters"],
+    },
+    approvedAt: { type: Date },
+    rejectedAt: { type: Date },
     submittedAt: {
       type: Date,
       default: Date.now,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 export const VolunteerModel = mongoose.model<IVolunteer>(
   "Volunteer",
-  VolunteerSchema
+  VolunteerSchema,
 );
