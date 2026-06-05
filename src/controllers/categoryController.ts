@@ -6,6 +6,8 @@ import VideoModel from "../models/VideoModel";
 import BlogPostModel from "../models/blogModel";
 import AwardPostModel from "../models/awardModel";
 import RescuePostModel from "../models/rescueModel";
+import logger from "../utils/logger";
+import { getUserRole } from "../constants/roles";
 
 /**
  * @desc    Get categories by type
@@ -27,7 +29,7 @@ export const getCategoriesByType = asyncHandler(
       success: true,
       data: categories,
     });
-  }
+  },
 );
 
 /**
@@ -43,7 +45,7 @@ export const getAllCategories = asyncHandler(
       success: true,
       data: categories,
     });
-  }
+  },
 );
 
 /**
@@ -62,7 +64,7 @@ export const createCategory = asyncHandler(
       message: "Category created successfully",
       data: category,
     });
-  }
+  },
 );
 
 /**
@@ -77,7 +79,7 @@ export const updateCategory = asyncHandler(
     const category = await CategoryModel.findByIdAndUpdate(
       req.params.id,
       { name },
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     );
 
     if (!category) {
@@ -90,7 +92,7 @@ export const updateCategory = asyncHandler(
       message: "Category updated successfully",
       data: category,
     });
-  }
+  },
 );
 
 /**
@@ -121,11 +123,21 @@ export const deleteCategory = asyncHandler(
       throw new Error("Cannot delete category that is currently in use");
     }
 
+    // req.user is set by the router-level `protect` middleware.
+    const actor = req.user;
+    const actorName = actor?.name ?? "unknown";
+    const actorRole = actor ? getUserRole(actor) : "unknown";
+    const actorId = actor?._id?.toString() ?? "unknown";
+
     await CategoryModel.findByIdAndDelete(req.params.id);
+
+    logger.info(
+      `Category deleted: "${category.name}" (id: ${req.params.id}) by ${actorRole} ${actorName} (${actor?.email ?? "unknown"}, id: ${actorId})`,
+    );
 
     res.status(200).json({
       success: true,
       message: "Category deleted successfully",
     });
-  }
+  },
 );

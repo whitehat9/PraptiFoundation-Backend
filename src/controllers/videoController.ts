@@ -5,6 +5,8 @@ import VideoModel from "../models/VideoModel";
 import CategoryModel from "../models/categoryModel";
 import cloudinary from "../config/cloudinaryConfig";
 import { Types } from "mongoose";
+import logger from "../utils/logger";
+import { getUserRole } from "../constants/roles";
 
 // Interface for query parameters
 interface VideoQueryParams {
@@ -108,7 +110,7 @@ export const getVideoById = asyncHandler(
   async (req: Request, res: Response) => {
     const video = await VideoModel.findById(req.params.id).populate(
       "category",
-      "name type"
+      "name type",
     );
 
     if (!video) {
@@ -125,7 +127,7 @@ export const getVideoById = asyncHandler(
       success: true,
       data: { video },
     });
-  }
+  },
 );
 
 /**
@@ -213,7 +215,7 @@ export const uploadVideo = asyncHandler(async (req: Request, res: Response) => {
   if (!categoryDoc) {
     res.status(400);
     throw new Error(
-      `Invalid video category: ${category}. Please ensure the category exists and is of type 'video'.`
+      `Invalid video category: ${category}. Please ensure the category exists and is of type 'video'.`,
     );
   }
 
@@ -233,7 +235,7 @@ export const uploadVideo = asyncHandler(async (req: Request, res: Response) => {
         } else {
           resolve(result);
         }
-      }
+      },
     );
     uploadStream.end(videoFile.buffer);
   });
@@ -260,7 +262,7 @@ export const uploadVideo = asyncHandler(async (req: Request, res: Response) => {
           } else {
             resolve(result);
           }
-        }
+        },
       );
       uploadStream.end(thumbnailFile.buffer);
     });
@@ -292,7 +294,7 @@ export const uploadVideo = asyncHandler(async (req: Request, res: Response) => {
 
   const populatedVideo = await VideoModel.findById(video._id).populate(
     "category",
-    "name type"
+    "name type",
   );
 
   console.log("Video saved to database:", video._id);
@@ -362,7 +364,7 @@ export const createVideo = asyncHandler(async (req: Request, res: Response) => {
 
   const populatedVideo = await VideoModel.findById(video._id).populate(
     "category",
-    "name type"
+    "name type",
   );
 
   res.status(201).json({
@@ -394,7 +396,7 @@ export const updateVideo = asyncHandler(async (req: Request, res: Response) => {
 
   // Handle both multipart/form-data and JSON data
   const isMultipart = req.headers["content-type"]?.includes(
-    "multipart/form-data"
+    "multipart/form-data",
   );
 
   // For JSON requests, check if body exists
@@ -438,7 +440,7 @@ export const updateVideo = asyncHandler(async (req: Request, res: Response) => {
             } else {
               resolve(result);
             }
-          }
+          },
         );
         uploadStream.end(videoFile.buffer);
       });
@@ -477,7 +479,7 @@ export const updateVideo = asyncHandler(async (req: Request, res: Response) => {
             } else {
               resolve(result);
             }
-          }
+          },
         );
         uploadStream.end(thumbnailFile.buffer);
       });
@@ -524,7 +526,7 @@ export const updateVideo = asyncHandler(async (req: Request, res: Response) => {
     if (!categoryDoc) {
       res.status(400);
       throw new Error(
-        `Invalid video category: ${category}. Please ensure the category exists and is of type 'video'.`
+        `Invalid video category: ${category}. Please ensure the category exists and is of type 'video'.`,
       );
     }
 
@@ -559,7 +561,7 @@ export const updateVideo = asyncHandler(async (req: Request, res: Response) => {
       {
         new: true,
         runValidators: true,
-      }
+      },
     ).populate("category", "name type");
 
     // Check if update was successful
@@ -595,7 +597,7 @@ export const updateVideo = asyncHandler(async (req: Request, res: Response) => {
       // Handle specific MongoDB validation errors
       if (updateError.name === "ValidationError") {
         const validationErrors = Object.values((updateError as any).errors).map(
-          (err: any) => err.message
+          (err: any) => err.message,
         );
         res.status(400);
         throw new Error(`Validation error: ${validationErrors.join(", ")}`);
@@ -629,6 +631,12 @@ export const deleteVideo = asyncHandler(async (req: Request, res: Response) => {
     throw new Error("Video not found");
   }
 
+  // req.user is set by the router-level `protect` middleware.
+  const actor = req.user;
+  const actorName = actor?.name ?? "unknown";
+  const actorRole = actor ? getUserRole(actor) : "unknown";
+  const actorId = actor?._id?.toString() ?? "unknown";
+
   // Delete from Cloudinary
   if (video.publicId) {
     await cloudinary.uploader.destroy(video.publicId, {
@@ -646,12 +654,15 @@ export const deleteVideo = asyncHandler(async (req: Request, res: Response) => {
   // Delete from database
   await VideoModel.findByIdAndDelete(req.params.id);
 
+  logger.info(
+    `Video deleted: "${video.title}" (id: ${req.params.id}) by ${actorRole} ${actorName} (${actor?.email ?? "unknown"}, id: ${actorId})`,
+  );
+
   res.status(200).json({
     success: true,
     message: "Video deleted successfully",
   });
 });
-
 // ============ CATEGORY MANAGEMENT FUNCTIONS ============
 
 /**
@@ -669,7 +680,7 @@ export const getVideoCategories = asyncHandler(
       success: true,
       data: categories,
     });
-  }
+  },
 );
 
 /**
@@ -695,7 +706,7 @@ export const getVideoCategoriesWithCounts = asyncHandler(
           name: category.name,
           count,
         };
-      })
+      }),
     );
 
     // Sort by count (descending)
@@ -705,7 +716,7 @@ export const getVideoCategoriesWithCounts = asyncHandler(
       success: true,
       data: categoriesWithCounts,
     });
-  }
+  },
 );
 
 /**
@@ -732,7 +743,7 @@ export const createVideoCategory = asyncHandler(
       message: "Video category created successfully",
       data: category,
     });
-  }
+  },
 );
 
 /**
@@ -763,7 +774,7 @@ export const updateVideoCategory = asyncHandler(
     const updatedCategory = await CategoryModel.findByIdAndUpdate(
       req.params.id,
       { name },
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     );
 
     res.status(200).json({
@@ -771,7 +782,7 @@ export const updateVideoCategory = asyncHandler(
       message: "Video category updated successfully",
       data: updatedCategory,
     });
-  }
+  },
 );
 
 /**
@@ -798,7 +809,7 @@ export const deleteVideoCategory = asyncHandler(
     if (isUsed) {
       res.status(400);
       throw new Error(
-        "Cannot delete category that is currently in use by videos"
+        "Cannot delete category that is currently in use by videos",
       );
     }
 
@@ -808,5 +819,5 @@ export const deleteVideoCategory = asyncHandler(
       success: true,
       message: "Video category deleted successfully",
     });
-  }
+  },
 );

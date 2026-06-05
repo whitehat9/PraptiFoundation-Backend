@@ -8,32 +8,58 @@ import {
   uploadAward,
   uploadMultipleAwards,
 } from "../controllers/award.controller";
-import { protect } from "../middleware/authMiddleware";
+import { protect, authorize } from "../middleware/authMiddleware";
+import { ROLES } from "../constants/roles";
 import { handleMulterError, photoUploadConfig } from "../config/multerConfig";
+
 const router = express.Router();
 
-router.post("/create", protect, createAwardPost);
+// ── Write routes: Super-Admin + Editor ──────────────────────────
+router.post(
+  "/create",
+  protect,
+  authorize(ROLES.SUPER_ADMIN, ROLES.EDITOR),
+  createAwardPost,
+);
+
 // Single photo upload
 router.post(
   "/upload",
   protect,
+  authorize(ROLES.SUPER_ADMIN, ROLES.EDITOR),
   photoUploadConfig.single("image"),
   handleMulterError,
-  uploadAward
+  uploadAward,
 );
 
 // Multiple photos upload
 router.post(
   "/upload-multiple",
   protect,
+  authorize(ROLES.SUPER_ADMIN, ROLES.EDITOR),
   photoUploadConfig.array("images", 10), // Max 10 photos
   handleMulterError,
-  uploadMultipleAwards
+  uploadMultipleAwards,
 );
 
+router.patch(
+  "/update/:id",
+  protect,
+  authorize(ROLES.SUPER_ADMIN, ROLES.EDITOR),
+  photoUploadConfig.single("image"),
+  handleMulterError,
+  updateAwardPost,
+);
+
+router.delete(
+  "/del/:id",
+  protect,
+  authorize(ROLES.SUPER_ADMIN, ROLES.EDITOR),
+  delAwardPost,
+);
+
+// ── Read routes: public ─────────────────────────────────────────
 router.get("/get", getAwardPost);
 router.get("/get/:id", getByIdAwardPost);
-router.patch("/update/:id", photoUploadConfig.single("image"), updateAwardPost);
-router.delete("/del/:id", delAwardPost);
 
 export default router;

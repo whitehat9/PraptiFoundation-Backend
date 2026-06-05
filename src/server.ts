@@ -28,6 +28,7 @@ import rescueRoutes from "./routes/rescue";
 //
 import copyAwardRoutes from "./routes/copyAward";
 import copyPhotoRoutes from "./routes/copyPhoto";
+import editorRoutes from "./routes/editorRoutes";
 
 // Create Express application
 const app: Application = express();
@@ -98,6 +99,8 @@ app.use("/api/rescue", rescueRoutes);
 //
 app.use("/api/copy-awards", copyAwardRoutes);
 app.use("/api/copy-photos", copyPhotoRoutes);
+//
+app.use("/api/editor", editorRoutes);
 
 // Global error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {

@@ -7,6 +7,7 @@ import {
   sendVolunteerApprovalEmail,
   sendVolunteerRejectionEmail,
 } from "../utils/emailService";
+import { getUserRole } from "../constants/roles";
 
 export const createVolunteer = asyncHandler(
   async (req: Request, res: Response) => {
@@ -139,10 +140,16 @@ export const deleteVolunteerForm = asyncHandler(
       return;
     }
 
+    // req.user is set by `protect`; narrow defensively.
+    const actor = req.user;
+    const actorName = actor?.name ?? "unknown";
+    const actorRole = actor ? getUserRole(actor) : "unknown";
+    const actorId = actor?._id?.toString() ?? "unknown";
+
     await VolunteerModel.findByIdAndDelete(id);
 
     logger.info(
-      `Volunteer application deleted: ${volunteer.email} by ${req.user?.email}`,
+      `Volunteer application deleted: ${volunteer.email} (id: ${id}) by ${actorRole} ${actorName} (${actor?.email ?? "unknown"}, id: ${actorId})`,
     );
 
     res.status(200).json({

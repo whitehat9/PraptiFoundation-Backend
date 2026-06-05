@@ -1,6 +1,7 @@
 import express from "express";
 
-import { protect } from "../middleware/authMiddleware";
+import { protect, authorize } from "../middleware/authMiddleware";
+import { ROLES } from "../constants/roles";
 import {
   approveVolunteer,
   createVolunteer,
@@ -14,28 +15,58 @@ import {
 const router = express.Router();
 
 // POST /api/volunteers/create - create a new volunteer application
-//Public
+// Public
 router.post("/create", createVolunteer);
 
 // GET /api/volunteers/info - Get volunteer applications
-// Private
-router.get("/info", protect, getVolunteerInfo);
+// Private (Super-Admin + Editor)
+router.get(
+  "/info",
+  protect,
+  authorize(ROLES.SUPER_ADMIN, ROLES.EDITOR),
+  getVolunteerInfo,
+);
 
 // PATCH /api/volunteers/:id/mark-read
-router.patch("/:id/mark-read", protect, markVolunteerAsRead);
+router.patch(
+  "/:id/mark-read",
+  protect,
+  authorize(ROLES.SUPER_ADMIN, ROLES.EDITOR),
+  markVolunteerAsRead,
+);
 
 // PATCH /api/volunteers/:id/approve
-router.patch("/:id/approve", protect, approveVolunteer);
+router.patch(
+  "/:id/approve",
+  protect,
+  authorize(ROLES.SUPER_ADMIN, ROLES.EDITOR),
+  approveVolunteer,
+);
 
 // PATCH /api/volunteers/:id/reject
-router.patch("/:id/reject", protect, rejectVolunteer);
+router.patch(
+  "/:id/reject",
+  protect,
+  authorize(ROLES.SUPER_ADMIN, ROLES.EDITOR),
+  rejectVolunteer,
+);
 
 // GET /api/volunteers/:id - get volunteer by Id
-// Private
-router.get("/:id", protect, getVolunteerById);
+// Private (Super-Admin + Editor)
+router.get(
+  "/:id",
+  protect,
+  authorize(ROLES.SUPER_ADMIN, ROLES.EDITOR),
+  getVolunteerById,
+);
 
-// Del /api/volunteers/:id - del volunteer by Id
-// Private
-router.delete("/:id", protect, deleteVolunteerForm);
+// DELETE /api/volunteers/:id - delete volunteer by Id
+// Private (Super-Admin + Editor)
+router.delete(
+  "/:id",
+  protect,
+  authorize(ROLES.SUPER_ADMIN, ROLES.EDITOR),
+  deleteVolunteerForm,
+);
 
 export default router;

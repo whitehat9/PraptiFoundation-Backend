@@ -4,6 +4,8 @@ import PhotoModel, { IPhoto } from "../models/photoModel";
 import CategoryModel from "../models/categoryModel";
 import cloudinary from "../config/cloudinaryConfig";
 import { Types } from "mongoose";
+import { getUserRole } from "../constants/roles";
+import logger from "../utils/logger";
 
 /**
  * Get all photos with pagination and filtering
@@ -773,6 +775,12 @@ export const deletePhoto = asyncHandler(async (req: Request, res: Response) => {
     throw new Error("Photo not found");
   }
 
+  // req.user is set by `protect`; narrow defensively.
+  const actor = req.user;
+  const actorName = actor?.name ?? "unknown";
+  const actorRole = actor ? getUserRole(actor) : "unknown";
+  const actorId = actor?._id?.toString() ?? "unknown";
+
   // Delete all images from Cloudinary
   const deletePromises = photo.images.map((image) =>
     cloudinary.uploader.destroy(image.cloudinaryPublicId),
@@ -782,6 +790,10 @@ export const deletePhoto = asyncHandler(async (req: Request, res: Response) => {
 
   // Delete from database
   await PhotoModel.findByIdAndDelete(req.params.id);
+
+  logger.info(
+    `Photo deleted: (id: ${req.params.id}) by ${actorRole} ${actorName} (${actor?.email ?? "unknown"}, id: ${actorId})`,
+  );
 
   res.status(200).json({
     success: true,

@@ -5,6 +5,7 @@ import AwardPostModel from "../models/awardModel";
 import cloudinary from "../config/cloudinaryConfig";
 import logger from "../utils/logger";
 import mongoose, { Types } from "mongoose";
+import { getUserRole } from "../constants/roles";
 
 /**
  * @desc    Get all award posts
@@ -652,7 +653,6 @@ export const delAwardPost = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
     const { id } = req.params;
 
-    // Validate ObjectId format
     if (!Types.ObjectId.isValid(id)) {
       res.status(400);
       throw new Error("Invalid award ID format");
@@ -664,7 +664,12 @@ export const delAwardPost = asyncHandler(
       throw new Error("Award post not found");
     }
 
-    // Delete all images from Cloudinary
+    // req.user is guaranteed by `protect`; narrow defensively.
+    const actor = req.user;
+    const actorName = actor?.name ?? "unknown";
+    const actorRole = actor ? getUserRole(actor) : "unknown";
+    const actorId = actor?._id?.toString() ?? "unknown";
+
     const deletePromises = award.images.map(async (image) => {
       try {
         if (image.cloudinaryPublicId) {
@@ -676,20 +681,19 @@ export const delAwardPost = asyncHandler(
           );
         }
       } catch (cloudinaryError) {
-        // Log error but don't fail the deletion
         logger.error(
           `Failed to delete image from Cloudinary: ${cloudinaryError}`,
         );
       }
     });
 
-    // Wait for all Cloudinary deletions to complete
     await Promise.allSettled(deletePromises);
 
-    // Delete from database
     await AwardPostModel.findByIdAndDelete(id);
 
-    logger.info(`Award post deleted: ${award.title}`);
+    logger.info(
+      `Award post deleted: "${award.title}" (id: ${id}) by ${actorRole} ${actorName} (id: ${actorId})`,
+    );
 
     res.status(200).json({
       success: true,

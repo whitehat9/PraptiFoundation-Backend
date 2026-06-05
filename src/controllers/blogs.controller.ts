@@ -5,6 +5,7 @@ import logger from "../utils/logger";
 import cloudinary from "../config/cloudinaryConfig";
 import BlogPostModel from "../models/blogModel";
 import mongoose from "mongoose";
+import { getUserRole } from "../constants/roles";
 
 /**
  * @desc    Get all blog posts
@@ -27,7 +28,7 @@ export const getBlogPost = asyncHandler(
         error: error.message,
       });
     }
-  }
+  },
 );
 
 /**
@@ -50,7 +51,7 @@ export const getBlogPostById = asyncHandler(
 
       const blog = await BlogPostModel.findById(id).populate(
         "category",
-        "name type"
+        "name type",
       );
 
       if (!blog) {
@@ -70,7 +71,7 @@ export const getBlogPostById = asyncHandler(
         error: error.message,
       });
     }
-  }
+  },
 );
 
 /**
@@ -135,7 +136,7 @@ export const createBlogPost = asyncHandler(
       if (!categoryDoc) {
         res.status(400);
         throw new Error(
-          `Invalid blog category: ${category}. Please ensure the category exists and is of type 'blogs'.`
+          `Invalid blog category: ${category}. Please ensure the category exists and is of type 'blogs'.`,
         );
       }
 
@@ -166,7 +167,7 @@ export const createBlogPost = asyncHandler(
         error: error.message,
       });
     }
-  }
+  },
 );
 
 /**
@@ -224,7 +225,7 @@ export const updateBlogPost = asyncHandler(
           // If ObjectId cast fails, category might be a name instead of ID
           console.log(
             "ObjectId cast failed, trying to find by name:",
-            category
+            category,
           );
         }
 
@@ -245,7 +246,7 @@ export const updateBlogPost = asyncHandler(
         if (!categoryDoc) {
           res.status(400);
           throw new Error(
-            `Invalid blog category: ${category}. Please ensure the category exists and is of type 'blogs'.`
+            `Invalid blog category: ${category}. Please ensure the category exists and is of type 'blogs'.`,
           );
         }
 
@@ -278,7 +279,7 @@ export const updateBlogPost = asyncHandler(
         error: error.message,
       });
     }
-  }
+  },
 );
 
 /**
@@ -309,36 +310,42 @@ export const deleteBlogPost = asyncHandler(
         return;
       }
 
+      // req.user is set by `protect`; narrow defensively.
+      const actor = req.user;
+      const actorName = actor?.name ?? "unknown";
+      const actorRole = actor ? getUserRole(actor) : "unknown";
+      const actorId = actor?._id?.toString() ?? "unknown";
+
       // Extract public ID from Cloudinary URL if it's a Cloudinary image
       if (blog.image && blog.image.includes("cloudinary.com")) {
         try {
           const urlParts = blog.image.split("/");
           const uploadIndex = urlParts.indexOf("upload");
           if (uploadIndex !== -1 && urlParts.length > uploadIndex + 2) {
-            // Get everything after 'upload/v{version}/'
+            // Everything after 'upload/v{version}/'
             const publicIdWithExtension = urlParts
               .slice(uploadIndex + 2)
               .join("/");
-            // Remove file extension
             const publicId = publicIdWithExtension.replace(/\.[^/.]+$/, "");
 
-            // Delete from Cloudinary
             const deleteResult = await cloudinary.uploader.destroy(publicId);
             logger.info(
-              `Deleted image from Cloudinary: ${publicId}, result: ${deleteResult.result}`
+              `Deleted image from Cloudinary: ${publicId}, result: ${deleteResult.result}`,
             );
           }
         } catch (cloudinaryError) {
           // Log error but don't fail the blog deletion
           logger.error(
-            `Failed to delete image from Cloudinary: ${cloudinaryError}`
+            `Failed to delete image from Cloudinary: ${cloudinaryError}`,
           );
         }
       }
 
       await BlogPostModel.findByIdAndDelete(id);
 
-      logger.info(`Blog post deleted: ${blog.title} by ${req.user?.email}`);
+      logger.info(
+        `Blog post deleted: "${blog.title}" (id: ${id}) by ${actorRole} ${actorName} (${actor?.email ?? "unknown"}, id: ${actorId})`,
+      );
 
       res.status(200).json({
         success: true,
@@ -352,5 +359,5 @@ export const deleteBlogPost = asyncHandler(
         error: error.message,
       });
     }
-  }
+  },
 );

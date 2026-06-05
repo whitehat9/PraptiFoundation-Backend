@@ -1,6 +1,7 @@
 import express from "express";
 
-import { protect } from "../middleware/authMiddleware";
+import { protect, authorize } from "../middleware/authMiddleware";
+import { ROLES } from "../constants/roles";
 
 import {
   validateBlogCreate,
@@ -21,11 +22,29 @@ const router = express.Router();
 router.get("/getAll", getBlogPost);
 router.get("/:id", validateBlogId, getBlogPostById);
 
-// Protected routes (admin only) with rate limiting and validation
-router.post("/create", protect, validateBlogCreate, createBlogPost);
+// Protected routes (Super-Admin + Editor) with validation
+router.post(
+  "/create",
+  protect,
+  authorize(ROLES.SUPER_ADMIN, ROLES.EDITOR),
+  validateBlogCreate,
+  createBlogPost,
+);
 
-router.put("/update/:id", protect, validateBlogUpdate, updateBlogPost);
+router.put(
+  "/update/:id",
+  protect,
+  authorize(ROLES.SUPER_ADMIN, ROLES.EDITOR),
+  validateBlogUpdate,
+  updateBlogPost,
+);
 
-router.delete("/delete/:id", protect, validateBlogId, deleteBlogPost);
+router.delete(
+  "/delete/:id",
+  protect,
+  authorize(ROLES.SUPER_ADMIN, ROLES.EDITOR),
+  validateBlogId,
+  deleteBlogPost,
+);
 
 export default router;
